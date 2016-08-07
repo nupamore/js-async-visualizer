@@ -288,12 +288,12 @@
 
   writeCode('Promise.race()',
   `
-  let request = req => new Promise((resolve, reject) => {
-    req.get((err, value) => {
-      if(!err) resolve(value);
-      else reject(err);
+    let request = req => new Promise((resolve, reject) => {
+      req.get((err, value) => {
+        if(!err) resolve(value);
+        else reject(err);
+      });
     });
-  });
 
     Promise.race([
       request(main),
