@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Async Visualizer</title>
+
+  <script src="https://code.jquery.com/jquery-3.0.0.js"></script>
+  <script src="prism.js"></script>
+  <link href="prism.css" rel="stylesheet">
+
+  <style>
+    .container {
+      width: 70%;
+      margin: 0 auto;
+      padding-top: 30px;
+    }
+    #view {
+      right: 0;
+      position: fixed;
+      background-color: white;
+      padding: 30px;
+    }
+    #view #main {
+      width: 500px;
+    }
+    .code {
+      margin-top: 50px;
+    }
+
+    td {
+      text-align: left;
+    }
+    hr {
+      margin: 20px 0;
+    }
+    h1, h2 {
+      display: inline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <table id="view">
+      <tr>
+        <th>Request</th><th>Timeline</th>
+      </tr>
+      <tr>
+        <td>main</td><td id="main"></td>
+      </tr>
+      <tr>
+        <td>req1</td><td id="req1"></td>
+      </tr>
+      <tr>
+        <td>req2</td><td id="req2"></td>
+      </tr>
+      <tr>
+        <td> </td><td id="log"></td>
+      </tr>
+    </table>
+
+    <h1>Async Visualizer</h1>
+
+    <div id="code-wrapper">
+      <div class="code">
+        <pre><code class="language-javascript">
+      var main = new Request('main');
+      var req1 = new Request('req1');
+      var req2 = new Request('req2');
+
+      main.get(function(err, value){
+        log(value);
+      });
+        </code></pre>
+      </div>
+    </div>
+  </div>
+
+</body>
+<script>
+
+(function(){
+
+  // color
+  const grey = '#DDDDDD';
+  const yellow = '#FFFF00';
+  const green = '#00FF00';
+  const red = '#FF0000';
+
+  // Request
+  const Request = function(id){
+    this.div = $('#'+id);
+    let color = grey;
+    let que = [];
+
+    this.start = function(){
+      if(que.length){
+        que[0].now--;
+        color = yellow;
+
+        if(que[0].now==0){
+          if(Math.random()>0.2){
+            color = green;
+          }
+          else{
+            color = red;
+          }
+        }
+      }
+      else if(color!=grey){
+        color = grey;
+      }
+      this.div.append($(`<font color='${ color }'>■</font>`));
+    };
+
+    this.end = function(){
+      if(que.length){
+        if(que[0].now==0){
+          let err = color == red ? id+' error' : false;
+          let count = err ? null : que[0].count
+          if(que[0].done) que[0].done(err, count);
+          que.shift();
+        }
+      }
+      else if(color!=grey){
+        color = grey;
+      }
+    };
+
+    this.get = (callback) => {
+      let count = Math.floor(Math.random()*9)+3;
+      que.push({
+        count: count,
+        now: count,
+        done: callback
+      });
+    };
+  };
+
+  // log
+  this.log = function(text){
+    $('#log').append(`<br><span>${ text }</span>`);
+  };
+
+  // Request list
+  this.main = new Request('main');
+  this.req1 = new Request('req1');
+  this.req2 = new Request('req2');
+
+  // main loop
+  const loop = function(amount){
+    main.start();
+    req1.start();
+    req2.start();
+
+    main.end();
+    req1.end();
+    req2.end();
+
+    if(amount>0){
+      amount--;
+      setTimeout(() => loop(amount), 20);
+    }
+  };
+
+  // code
+  let codes = [];
+  let codeNum = 0;
+  const writeCode = function(name, code){
+    $('#code-wrapper').append( $(`
+      <div class="code">
+        <h2>${ name }</h2> <button data-target=${ codeNum++ } class="run">run</button>
+        <pre><code class="language-javascript">${ code }</code></pre>
+      </div>
+    `) );
+    codes.push(code);
+  };
+
+  $('#code-wrapper').on('click', '.run', event => {
+    let id = $(event.target).attr('data-target');
+
+    main.div.html('');
+    req1.div.html('');
+    req2.div.html('');
+    $('#log').html('');
+    eval(codes[id]);
+
+    loop(30);
+  });
+
+  writeCode('Async',
+  `
+    var a;
+    main.get(function(err, value){
+      a = value;
+      log('main: ' + a);
+    });
+    req1.get(function(err, value){
+      a = value;
+      log('req1: ' + a);
+    });
+    req2.get(function(err, value){
+      a = value;
+      log('req2: ' + a);
+    });
+
+    log('result: ' + a);
+  `);
+
+  writeCode('Sync',
+  `
+    var a,b,c;
+    main.get(function(err, value){
+      a = value;
+      req1.get(function(err, value){
+        b = value;
+        req2.get(function(err, value){
+          c = value;
+          log('result: ' + (a+b+c));
+        });
+      });
+    });
+  `);
+
+  writeCode('with error',
+  `
+    main.get(function(err){
+      if(!err){
+        log('main success');
+        req1.get(function(err){
+          if(!err){
+            log('req1 success');
+            req2.get(function(err){
+              if(!err){
+                log('done!');
+              }else{
+                log(err);
+              }
+            });
+          }else{
+            log(err);
+          }
+        });
+      }else{
+        log(err);
+      }
+    });
+  `);
+
+  writeCode('ES6 : Promise',
+  `
+    let request = function(req){
+      return new Promise((resolve, reject) => {
+        req.get((err, value) => {
+          if(!err){
+            resolve(value);
+          }else{
+            reject(err);
+          }
+        });
+      });
+    };
+
+    request(main)
+    .then( () => request(req1) )
+    .then( () => request(req2) )
+    .then( () => log('done!') )
+    .catch( err => log(err) );
+  `);
+
+  writeCode('Promise.all()',
+  `
+    let request = req => new Promise((resolve, reject) => {
+      req.get((err, value) => {
+        if(!err) resolve(value);
+        else reject(err);
+      });
+    });
+
+    Promise.all([
+      request(main),
+      request(req1),
+      request(req2)
+    ])
+    .then(value => log(value))
+    .catch(err => log(err));
+  `);
+
+  writeCode('Promise.race()',
+  `
+  let request = req => new Promise((resolve, reject) => {
+    req.get((err, value) => {
+      if(!err) resolve(value);
+      else reject(err);
+    });
+  });
+
+    Promise.race([
+      request(main),
+      request(req1),
+      request(req2)
+    ])
+    .then(value => log('first: ' + value))
+    .catch(err => log(err));
+  `);
+
+
+})();
+
+</script>
+</html>
