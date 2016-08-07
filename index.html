@@ -16,6 +16,7 @@
     }
     #view {
       right: 0;
+      top: 0;
       position: fixed;
       background-color: white;
       padding: 30px;
@@ -163,6 +164,14 @@
     }
   };
 
+  // lib
+  const request = req => new Promise((resolve, reject) => {
+    req.get((err, value) => {
+      if(!err) resolve(value);
+      else reject(err);
+    });
+  });
+
   // code
   let codes = [];
   let codeNum = 0;
@@ -209,14 +218,14 @@
 
   writeCode('Sync',
   `
-    var a,b,c;
+    var sum = 0;
     main.get(function(err, value){
-      a = value;
+      sum += value;
       req1.get(function(err, value){
-        b = value;
+        sum += value;
         req2.get(function(err, value){
-          c = value;
-          log('result: ' + (a+b+c));
+          sum += value;
+          log('result: ' + sum);
         });
       });
     });
@@ -249,7 +258,7 @@
 
   writeCode('ES6 : Promise',
   `
-    let request = function(req){
+    const request = function(req){
       return new Promise((resolve, reject) => {
         req.get((err, value) => {
           if(!err){
@@ -270,7 +279,7 @@
 
   writeCode('Promise.all()',
   `
-    let request = req => new Promise((resolve, reject) => {
+    const request = req => new Promise((resolve, reject) => {
       req.get((err, value) => {
         if(!err) resolve(value);
         else reject(err);
@@ -282,25 +291,44 @@
       request(req1),
       request(req2)
     ])
-    .then(value => log(value))
+    .then(values => log(values))
     .catch(err => log(err));
   `);
 
   writeCode('Promise.race()',
   `
-    let request = req => new Promise((resolve, reject) => {
-      req.get((err, value) => {
-        if(!err) resolve(value);
-        else reject(err);
-      });
-    });
-
     Promise.race([
       request(main),
       request(req1),
       request(req2)
     ])
-    .then(value => log('first: ' + value))
+    .then(values => log('first: ' + values))
+    .catch(err => log(err));
+  `);
+
+  writeCode('Application',
+  `
+    const sum = arr => arr.reduce((prev, next) => prev+next);
+
+    main.get();                    // 1. Async works
+    req1.get();
+    req2.get();
+
+    Promise.all([                  // 2. All must end
+      request(main),
+      request(req1),
+      request(req2)
+    ])
+    .then(values => {
+      log('sum: ' + sum(values));
+
+      return Promise.race([        // 3. The fastest time
+        request(main),
+        request(req1),
+        request(req2)
+      ]);
+    })
+    .then(value => log('fastest: ' + value))
     .catch(err => log(err));
   `);
 
